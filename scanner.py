@@ -25,7 +25,7 @@ CFG = {
     "topn": int(env("TOP_N", "30")),
     "custom": [s.strip().upper() for s in env("SYMBOLS", "").split(",") if s.strip()],
     "state": env("STATE_FILE", "state.json"),
-    "ema4": env("EMA4_TREND", "0") == "1",           # xu hướng H4 xếp tầng 4 đường EMA 20/50/100/200
+    "ema4": env("EMA4_TREND", "1") == "1",           # xu hướng H4 xếp tầng 4 đường EMA 20/50/100/200 (bật: giảm sụt vốn trong backtest 180 ngày)
     "vol_mult": float(env("VOL_MULT", "0")),         # nến xác nhận phải có volume >= x lần TB20 nến trước (0 = tắt)
     "adx_min": float(env("ADX_MIN", "0")),           # ADX H4 tối thiểu (0 = tắt; backtest 180 ngày cho thấy lọc ADX không giúp)
     "btc_filter": env("BTC_FILTER", "0") == "1",     # altcoin phải cùng chiều BTC (H4 so với EMA50); mặc định tắt theo backtest
