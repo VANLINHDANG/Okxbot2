@@ -1,0 +1,38 @@
+name: Quét tín hiệu OKX
+
+on:
+  schedule:
+    - cron: "2 * * * *"      # phút 02 mỗi giờ (giờ UTC), ngay sau khi nến H1 đóng
+  workflow_dispatch: {}       # cho phép bấm chạy thử bằng tay
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Khôi phục trạng thái (tránh báo trùng)
+        uses: actions/cache@v4
+        with:
+          path: state.json
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+      - name: Quét và gửi Telegram
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          MARKET: swap          # swap = futures, spot = giao ngay
+          DIRS: "-1,1"          # -1 Short, 1 Long (bỏ bớt nếu chỉ cần một hướng)
+          LEV: "5"              # đòn bẩy
+          CAPITAL: "1000"       # vốn USDT
+          RISK_PCT: "1"         # % vốn rủi ro mỗi lệnh
+          TOP_N: "30"           # số cặp quét (top khối lượng)
+          MIN_VOL_M: "50"       # khối lượng 24h tối thiểu, triệu USDT
+          # SYMBOLS: "BTC,ETH,SOL"   # bỏ dấu # để chỉ quét các cặp tự chọn
+        run: python scanner.py

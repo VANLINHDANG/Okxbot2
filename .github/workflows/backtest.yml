@@ -1,0 +1,32 @@
+name: Backtest chiến lược
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Số ngày kiểm tra"
+        default: "90"
+      topn:
+        description: "Số cặp (top khối lượng)"
+        default: "10"
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Chạy backtest
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          MARKET: swap
+          BT_DAYS: ${{ inputs.days }}
+          BT_TOPN: ${{ inputs.topn }}
+        run: python backtest.py
