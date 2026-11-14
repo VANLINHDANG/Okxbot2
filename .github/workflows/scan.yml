@@ -3,7 +3,11 @@ name: Quét tín hiệu OKX
 on:
   schedule:
     - cron: "2 * * * *"      # phút 02 mỗi giờ (giờ UTC), ngay sau khi nến H1 đóng
-  workflow_dispatch: {}       # cho phép bấm chạy thử bằng tay
+  workflow_dispatch:          # cho phép bấm chạy thử bằng tay
+    inputs:
+      report:
+        description: "Gửi báo cáo nhật ký ngay (1 = có, 0 = không)"
+        default: "0"
 
 permissions:
   contents: read
@@ -20,13 +24,16 @@ jobs:
       - name: Khôi phục trạng thái (tránh báo trùng)
         uses: actions/cache@v4
         with:
-          path: state.json
+          path: |
+            state.json
+            journal.json
           key: state-${{ github.run_id }}
           restore-keys: state-
       - name: Quét và gửi Telegram
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          REPORT_NOW: ${{ inputs.report }}
           MARKET: swap          # swap = futures, spot = giao ngay
           DIRS: "-1,1"          # -1 Short, 1 Long (bỏ bớt nếu chỉ cần một hướng)
           LEV: "5"              # đòn bẩy
@@ -42,3 +49,12 @@ jobs:
           MIN_VOL_M: "50"       # khối lượng 24h tối thiểu, triệu USDT
           # SYMBOLS: "BTC,ETH,SOL"   # bỏ dấu # để chỉ quét các cặp tự chọn
         run: python scanner.py
+      - name: Sao lưu nhật ký (tải về từ tab Summary nếu cần)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journal
+          path: journal.json
+          retention-days: 30
+          overwrite: true
+          if-no-files-found: ignore

@@ -2,6 +2,7 @@
 """Quét OKX theo chiến lược pullback (H4 xu hướng, H1 vào lệnh) và gửi tín hiệu về Telegram.
 Chỉ dùng thư viện chuẩn Python, không cần cài thêm gói nào, không cần API key OKX."""
 import json, math, os, sys, time, html, urllib.request, urllib.parse, urllib.error
+import journal
 
 HOSTS = ["https://www.okx.com", "https://aws.okx.com"]
 STABLES = ("USDC", "FDUSD", "TUSD", "USDP", "PYUSD", "DAI", "EUR", "USDG", "USDD", "UST")
@@ -381,6 +382,12 @@ def main():
         except Exception as e:                     # noqa: BLE001
             print("Không lấy được xu hướng BTC (bỏ qua lọc BTC): %s" % e)
         print("Xu hướng BTC H4: %s" % {1: "tăng", -1: "giảm", None: "không rõ"}[btc])
+    jpath = env("JOURNAL_FILE", "journal.json")
+    try:
+        J = journal.load(jpath)
+    except Exception as e:                         # noqa: BLE001
+        print("Không mở được nhật ký: %s" % e)
+        J = None
     found, errors = [], 0
     for s in syms:
         try:
@@ -405,6 +412,11 @@ def main():
                     r["deriv"] = dv
                 state[key] = r["candle"]
                 found.append(r)
+                if J is not None:
+                    try:
+                        journal.add(J, r)
+                    except Exception as e:         # noqa: BLE001
+                        print("Nhật ký: không ghi được %s: %s" % (s, e))
         time.sleep(0.35)                           # giữ dưới giới hạn tốc độ của OKX
 
     found.sort(key=lambda r: -r["score"])
@@ -420,6 +432,15 @@ def main():
         chunk += ("\n\n" if chunk else "") + m
     if chunk:
         telegram(chunk + "\n\n<i>Chỉ mang tính tham khảo, không phải lời khuyên đầu tư.</i>")
+    if J is not None:
+        try:
+            closed = journal.update(J, get_json, float(env("FEE_PCT", "0.12")) / 100)
+            if closed and env("JOURNAL_NOTIFY", "1") == "1":
+                telegram(journal.closed_message(closed))
+            journal.maybe_report(J, telegram, env("REPORT_NOW", "0") == "1")
+            journal.save(J, jpath)
+        except Exception as e:                     # noqa: BLE001
+            print("Nhật ký lỗi: %s" % e)
     json.dump(state, open(CFG["state"], "w"))
 
 
