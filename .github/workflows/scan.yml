@@ -32,6 +32,7 @@ jobs:
           LEV: "5"              # đòn bẩy
           CAPITAL: "1000"       # vốn USDT
           RISK_PCT: "1"         # % vốn rủi ro mỗi lệnh
+          EMA4_TREND: "0"       # 1 = xu hướng H4 phải xếp tầng EMA 20/50/100/200 (chạy backtest so sánh rồi mới bật)
           VOL_MULT: "0"         # volume nến xác nhận >= x lần TB20 (0 = tắt; chạy backtest so sánh rồi mới bật)
           ADX_MIN: "0"          # lọc ADX H4 (0 = tắt)
           BTC_FILTER: "0"       # 1 = altcoin phải cùng chiều BTC, 0 = tắt
