@@ -53,7 +53,7 @@ def simulate(entry, sl, tp1, tp2, d, future):
 def collect_signals(sym, h1_raw, h4_raw, btc_h4=None):
     """Thu MỌI tín hiệu thô (chưa áp ADX / BTC / TP), kèm ADX và chiều BTC tại thời điểm đó.
     h*_raw: nến mới nhất trước, định dạng OKX."""
-    cfg = dict(sc.CFG, adx_min=0, btc_filter=False)
+    cfg = dict(sc.CFG, adx_min=0, btc_filter=False, vol_mult=0)
     h1, h4 = list(reversed(h1_raw)), list(reversed(h4_raw))          # cũ → mới
     btc_old = list(reversed(btc_h4)) if btc_h4 else None
     btc_cache, sigs = {}, []
@@ -77,22 +77,25 @@ def collect_signals(sym, h1_raw, h4_raw, btc_h4=None):
             r = sc.analyze(sym, a, b, 1e12, d, None, cfg, btc=btc)
             if r and r["signal"]:
                 sigs.append({"sym": sym, "i": i, "t": int(h1[i][0]), "d": d, "entry": r["entry"], "sl": r["sl"],
-                             "adx": r["adx"], "btc": btc, "fut": fut})
+                             "adx": r["adx"], "btc": btc, "volr": r["volr"], "fut": fut})
     return sigs
 
 
-def run_variant(sigs, tp1k=None, tp2k=None, adx_min=None, btc_on=None, dirs=(1, -1)):
+def run_variant(sigs, tp1k=None, tp2k=None, adx_min=None, btc_on=None, dirs=(1, -1), vol_min=None):
     """Áp một bộ tham số lên các tín hiệu thô → danh sách lệnh (có bỏ qua lệnh chồng khi đang giữ)."""
     tp1k = sc.CFG["tp1"] if tp1k is None else tp1k
     tp2k = sc.CFG["tp2"] if tp2k is None else tp2k
     adx_min = sc.CFG["adx_min"] if adx_min is None else adx_min
     btc_on = sc.CFG["btc_filter"] if btc_on is None else btc_on
+    vol_min = sc.CFG["vol_mult"] if vol_min is None else vol_min
     trades, busy = [], {}
     for s in sorted(sigs, key=lambda x: (x["sym"], x["i"])):
         d = s["d"]
         if d not in dirs:
             continue
         if adx_min > 0 and not (s["adx"] == s["adx"] and s["adx"] >= adx_min):
+            continue
+        if vol_min > 0 and s["volr"] < vol_min:
             continue
         if btc_on and s["btc"] is not None and not s["sym"].startswith("BTC-") and s["btc"] != d:
             continue
@@ -112,7 +115,7 @@ def run_variant(sigs, tp1k=None, tp2k=None, adx_min=None, btc_on=None, dirs=(1, 
 def backtest_symbol(sym, h1_raw, h4_raw, cfg, btc_h4=None):
     """Giữ tương thích: backtest một cặp với cấu hình cfg."""
     return run_variant(collect_signals(sym, h1_raw, h4_raw, btc_h4), cfg["tp1"], cfg["tp2"], cfg["adx_min"],
-                       cfg["btc_filter"])
+                       cfg["btc_filter"], vol_min=cfg.get("vol_mult", 0))
 
 
 def stats(ts, mid=None):
@@ -145,17 +148,17 @@ def summarize(trades):
 
 
 def sweep(sigs):
-    """So sánh lưới biến thể. Trả (dòng_bảng_đầy_đủ, tin_telegram)."""
+    """So sánh lưới biến thể (TP1 × ngưỡng volume × hướng lệnh; ADX và lọc BTC đã tắt vì backtest cho thấy không giúp). Trả (dòng_bảng_đầy_đủ, tin_telegram)."""
     if not sigs:
         return [], "Không có tín hiệu thô nào để so sánh."
     ts_all = [s["t"] for s in sigs]
     mid = (min(ts_all) + max(ts_all)) / 2
     dir_sets = {"L+S": (1, -1), "Short": (-1,), "Long": (1,)}
     rows = []
-    for tp1k, adx_min, btc_on, (dn, dirs) in itertools.product((1.0, 1.5), (0, 20, 25), (False, True), dir_sets.items()):
-        st = stats(run_variant(sigs, tp1k, None, adx_min, btc_on, dirs), mid)
+    for tp1k, vmin, (dn, dirs) in itertools.product((1.0, 1.5), (0, 1.0, 1.5, 2.0), dir_sets.items()):
+        st = stats(run_variant(sigs, tp1k, None, 0, False, dirs, vmin), mid)
         if st:
-            rows.append(("TP1 %.1fR | ADX %s | BTC %s | %s" % (tp1k, adx_min or "tắt", "bật" if btc_on else "tắt", dn), st))
+            rows.append(("TP1 %.1fR | Volume %s | %s" % (tp1k, ("≥%.1fx TB20" % vmin) if vmin else "tắt", dn), st))
     rows.sort(key=lambda r: -r[1]["avg"])
     def line(r):
         n, s = r

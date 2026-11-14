@@ -25,6 +25,7 @@ CFG = {
     "topn": int(env("TOP_N", "30")),
     "custom": [s.strip().upper() for s in env("SYMBOLS", "").split(",") if s.strip()],
     "state": env("STATE_FILE", "state.json"),
+    "vol_mult": float(env("VOL_MULT", "0")),         # nến xác nhận phải có volume >= x lần TB20 nến trước (0 = tắt)
     "adx_min": float(env("ADX_MIN", "0")),           # ADX H4 tối thiểu (0 = tắt; backtest 180 ngày cho thấy lọc ADX không giúp)
     "btc_filter": env("BTC_FILTER", "0") == "1",     # altcoin phải cùng chiều BTC (H4 so với EMA50); mặc định tắt theo backtest
     "deriv": env("DERIV_FILTER", "1") == "1",     # bật lọc funding + OI
@@ -207,7 +208,10 @@ def analyze(sym, h4raw, h1raw, vol24, d, ct_val, cfg=CFG, btc=None):
     else:
         confirm = close < op and (close < prev_lo or hi - max(close, op) >= 1.5 * body) and close < e20[n1]
 
-    vol_ok = B["v"][n1] >= sum(B["v"][n1 - 20:n1]) / 20
+    avg_v = sum(B["v"][n1 - 20:n1]) / 20
+    volr = B["v"][n1] / avg_v if avg_v > 0 else 0.0     # volume nến xác nhận / TB 20 nến trước
+    vol_ok = volr >= 1
+    vol_req = cfg["vol_mult"] <= 0 or volr >= cfg["vol_mult"]
     liq = vol24 >= cfg["minvol"] * 1e6
 
     ax = adx(A["h"], A["l"], A["c"])[n4]
@@ -239,11 +243,11 @@ def analyze(sym, h4raw, h1raw, vol24, d, ct_val, cfg=CFG, btc=None):
     liq_close = liq_px is not None and abs(entry - liq_px) < 1.5 * risk_px
 
     score = sum([30 * trend, 25 * pullback, 15 * rsi_ok, 15 * confirm, 5 * vol_ok, 5 * liq, 5 * room_ok])
-    signal = trend and pullback and rsi_ok and confirm and liq and risk_ok and adx_ok and btc_ok
+    signal = trend and pullback and rsi_ok and confirm and liq and risk_ok and adx_ok and btc_ok and vol_req
     return {"sym": sym, "dir": d, "signal": signal, "score": int(score), "entry": entry, "sl": sl, "tp1": tp1,
             "tp2": tp2, "risk_pct": risk_pct, "contracts": contracts, "qty": qty, "notional": notional,
             "margin": margin, "liq_px": liq_px, "lev": lev, "max_lev": max_lev, "liq_close": liq_close,
-            "adx": ax, "btc": btc, "rsi": rs, "candle": B["t"][n1], "vol24": vol24}
+            "adx": ax, "btc": btc, "volr": volr, "rsi": rs, "candle": B["t"][n1], "vol24": vol24}
 
 
 # ---------- lọc dữ liệu phái sinh (funding + open interest) ----------
@@ -303,6 +307,8 @@ def message(s):
     ctx = []
     if s.get("adx") == s.get("adx"):
         ctx.append("ADX H4: %.0f" % s["adx"])
+    if s.get("volr") is not None:
+        ctx.append("Volume: %.1fx TB20" % s["volr"])
     if s.get("btc") is not None and not s["sym"].startswith("BTC-"):
         ctx.append("BTC H4: %s" % ("trên EMA50 ↑" if s["btc"] == 1 else "dưới EMA50 ↓"))
     if ctx:
