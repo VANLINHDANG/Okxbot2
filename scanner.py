@@ -25,8 +25,8 @@ CFG = {
     "topn": int(env("TOP_N", "30")),
     "custom": [s.strip().upper() for s in env("SYMBOLS", "").split(",") if s.strip()],
     "state": env("STATE_FILE", "state.json"),
-    "adx_min": float(env("ADX_MIN", "20")),          # ADX H4 tối thiểu (0 = tắt)
-    "btc_filter": env("BTC_FILTER", "1") == "1",     # altcoin phải cùng chiều BTC (H4 so với EMA50)
+    "adx_min": float(env("ADX_MIN", "0")),           # ADX H4 tối thiểu (0 = tắt; backtest 180 ngày cho thấy lọc ADX không giúp)
+    "btc_filter": env("BTC_FILTER", "0") == "1",     # altcoin phải cùng chiều BTC (H4 so với EMA50); mặc định tắt theo backtest
     "deriv": env("DERIV_FILTER", "1") == "1",     # bật lọc funding + OI
     "fund_max": float(env("FUND_MAX_PCT", "0.05")),  # %/8h: Long bị chặn nếu funding > +x, Short nếu < -x
     "oi_max": float(env("OI_MAX_PCT", "5")),         # %: chặn nếu OI tăng quá x% trong 4 giờ qua

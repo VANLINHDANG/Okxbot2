@@ -32,6 +32,9 @@ jobs:
           LEV: "5"              # đòn bẩy
           CAPITAL: "1000"       # vốn USDT
           RISK_PCT: "1"         # % vốn rủi ro mỗi lệnh
+          ADX_MIN: "0"          # lọc ADX H4 (0 = tắt)
+          BTC_FILTER: "0"       # 1 = altcoin phải cùng chiều BTC, 0 = tắt
+          DERIV_FILTER: "1"     # lọc funding + open interest (1 = bật)
           TOP_N: "30"           # số cặp quét (top khối lượng)
           MIN_VOL_M: "50"       # khối lượng 24h tối thiểu, triệu USDT
           # SYMBOLS: "BTC,ETH,SOL"   # bỏ dấu # để chỉ quét các cặp tự chọn
