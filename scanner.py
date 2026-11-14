@@ -25,6 +25,7 @@ CFG = {
     "topn": int(env("TOP_N", "30")),
     "custom": [s.strip().upper() for s in env("SYMBOLS", "").split(",") if s.strip()],
     "state": env("STATE_FILE", "state.json"),
+    "max_ext": float(env("MAX_EXT_ATR", "0")),       # bỏ tín hiệu nếu giá đã cách EMA20 H1 quá x ATR theo hướng lệnh (0 = tắt)
     "ema4": env("EMA4_TREND", "1") == "1",           # xu hướng H4 xếp tầng 4 đường EMA 20/50/100/200 (bật: giảm sụt vốn trong backtest 180 ngày)
     "vol_mult": float(env("VOL_MULT", "0")),         # nến xác nhận phải có volume >= x lần TB20 nến trước (0 = tắt)
     "adx_min": float(env("ADX_MIN", "0")),           # ADX H4 tối thiểu (0 = tắt; backtest 180 ngày cho thấy lọc ADX không giúp)
@@ -183,6 +184,8 @@ def analyze(sym, h4raw, h1raw, vol24, d, ct_val, cfg=CFG, btc=None):
     r, at = rsi(B["c"]), atr(B["h"], B["l"], B["c"])
     a1, close, op, hi, lo = at[n1], B["c"][n1], B["o"][n1], B["h"][n1], B["l"][n1]
     prev_hi, prev_lo = B["h"][n1 - 1], B["l"][n1 - 1]
+    dist20 = d * (close - e20[n1]) / a1 if a1 > 0 else 0.0   # giá đã chạy xa EMA20 H1 bao nhiêu ATR (theo hướng lệnh)
+    ext_ok = cfg["max_ext"] <= 0 or dist20 <= cfg["max_ext"]
 
     start = n1 - 48 + 1
     if L:
@@ -251,11 +254,11 @@ def analyze(sym, h4raw, h1raw, vol24, d, ct_val, cfg=CFG, btc=None):
     liq_close = liq_px is not None and abs(entry - liq_px) < 1.5 * risk_px
 
     score = sum([30 * trend, 25 * pullback, 15 * rsi_ok, 15 * confirm, 5 * vol_ok, 5 * liq, 5 * room_ok])
-    signal = trend and pullback and rsi_ok and confirm and liq and risk_ok and adx_ok and btc_ok and vol_req and ema4_req
+    signal = trend and pullback and rsi_ok and confirm and liq and risk_ok and adx_ok and btc_ok and vol_req and ema4_req and ext_ok
     return {"sym": sym, "dir": d, "signal": signal, "score": int(score), "entry": entry, "sl": sl, "tp1": tp1,
             "tp2": tp2, "risk_pct": risk_pct, "contracts": contracts, "qty": qty, "notional": notional,
             "margin": margin, "liq_px": liq_px, "lev": lev, "max_lev": max_lev, "liq_close": liq_close,
-            "adx": ax, "btc": btc, "volr": volr, "ema4": ema4_ok, "rsi": rs, "candle": B["t"][n1], "vol24": vol24}
+            "adx": ax, "btc": btc, "volr": volr, "ema4": ema4_ok, "ext": dist20, "rsi": rs, "candle": B["t"][n1], "vol24": vol24}
 
 
 # ---------- lọc dữ liệu phái sinh (funding + open interest) ----------
@@ -315,6 +318,8 @@ def message(s):
     ctx = []
     if s.get("adx") == s.get("adx"):
         ctx.append("ADX H4: %.0f" % s["adx"])
+    if s.get("ext") is not None:
+        ctx.append("Cách EMA20 H1: %.1f ATR" % s["ext"])
     if s.get("ema4"):
         ctx.append("EMA H4 20>50>100>200 ✓" if s["dir"] == 1 else "EMA H4 20<50<100<200 ✓")
     if s.get("volr") is not None:
